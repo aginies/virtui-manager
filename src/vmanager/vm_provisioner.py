@@ -39,7 +39,7 @@ from .provisioning.automation_engine import AutomationEngine
 from .provisioning.libosinfo_manager import LibosinfoManager
 from .provisioning.os_provider import OSType, OSVersion
 from .provisioning.provider_registry import ProviderRegistry
-from .storage_manager import create_volume
+from .storage_manager import create_volume, stream_file_into_volume
 from .utils import (
     get_ssh_host_from_uri,
     manage_firewalld_port,
@@ -506,8 +506,9 @@ class VMProvisioner:
                 vol = None
 
         if vol is not None:
-            vol_info = vol.info()
-            if vol_info["capacity"] == file_size:
+            # info() returns (type, capacity, allocation).
+            _, existing_capacity, _ = vol.info()
+            if existing_capacity == file_size:
                 logging.info(
                     f"Volume '{volume_name}' already exists in pool '{storage_pool_name}'. Skipping upload."
                 )
@@ -517,7 +518,7 @@ class VMProvisioner:
             # Size mismatch: stale or partial file, remove it and re-upload
             logging.warning(
                 f"Volume '{volume_name}' in pool '{storage_pool_name}' size "
-                f"{vol_info['capacity']} does not match local file size {file_size}. Re-uploading."
+                f"{existing_capacity} does not match local file size {file_size}. Re-uploading."
             )
             vol.delete(0)
 
@@ -533,70 +534,11 @@ class VMProvisioner:
         """
         vol = pool.createXML(vol_xml, 0)
 
-        # --- Keepalive logic for long uploads ---
-        old_interval, old_count = -1, 0
-        try:
-            # Try to get original keepalive settings
-            old_interval, old_count = self.conn.getKeepAlive()
-        except (libvirt.libvirtError, AttributeError):
-            pass
-
-        try:
-            # Set a more aggressive keepalive for the long operation
-            self.conn.setKeepAlive(10, 5)
-            logging.info("Set libvirt keepalive to 10s for file upload.")
-        except (libvirt.libvirtError, AttributeError):
-            logging.warning("Could not set libvirt keepalive for upload.")
-
-        try:
-            # Upload data
-            stream = self.conn.newStream(0)
-            try:
-                vol.upload(stream, 0, file_size)
-
-                with open(local_path, "rb") as f:
-                    uploaded = 0
-                    chunk_count = 0
-                    while True:
-                        data = f.read(1024 * 1024)  # 1MB chunk
-                        if not data:
-                            break
-                        stream.send(data)
-                        uploaded += len(data)
-                        chunk_count += 1
-
-                        # Periodically ping libvirt to keep connection alive during long uploads
-                        # Every 10MB seems reasonable to prevent timeouts on some connections
-                        if chunk_count % 10 == 0:
-                            try:
-                                self.conn.getLibVersion()
-                            except Exception:
-                                pass
-
-                        if progress_callback:
-                            percent = int((uploaded / file_size) * 100)
-                            progress_callback(percent)
-
-                stream.finish()
-            except Exception as e:
-                try:
-                    stream.abort()
-                except Exception:
-                    pass
-                vol.delete(0)
-                raise e
-
-            return vol.path()
-        finally:
-            # Restore original keepalive settings
-            if old_interval != -1:
-                try:
-                    self.conn.setKeepAlive(old_interval, old_count)
-                    logging.info(
-                        f"Restored libvirt keepalive to interval={old_interval}, count={old_count}."
-                    )
-                except libvirt.libvirtError:
-                    logging.warning("Could not restore original libvirt keepalive settings.")
+        # The keepalive handling, the chunking and the cleanup of a half-written
+        # volume live in storage_manager, shared with the CLI's
+        # upload_file_to_volume(), so there is one file upload and not two.
+        stream_file_into_volume(self.conn, vol, local_path, file_size, progress_callback)
+        return vol.path()
 
     def check_pool_volume(self, volume_name: str, storage_pool_name: str) -> str | None:
         """Check if a volume with the given name exists in the pool. Returns path or None."""

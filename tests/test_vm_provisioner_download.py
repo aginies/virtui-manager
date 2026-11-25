@@ -216,7 +216,8 @@ class TestVMProvisionerDownload(unittest.TestCase):
         mock_pool.isActive.return_value = True
         mock_vol = MagicMock()
         mock_vol.path.return_value = "/var/lib/libvirt/images/test.iso"
-        mock_vol.info.return_value = {"type": 0, "capacity": 12, "allocation": 12, "physical": 12}
+        # virStorageVol.info() returns (type, capacity, allocation), not a dict.
+        mock_vol.info.return_value = (0, 12, 12)
         # First lookup fails, after refresh the volume is found
         mock_pool.storageVolLookupByName.side_effect = [
             libvirt.libvirtError("Not found"),
@@ -246,7 +247,7 @@ class TestVMProvisionerDownload(unittest.TestCase):
         mock_pool = MagicMock()
         mock_pool.isActive.return_value = True
         mock_vol = MagicMock()
-        mock_vol.info.return_value = {"type": 0, "capacity": 999, "allocation": 999, "physical": 999}
+        mock_vol.info.return_value = (0, 999, 999)
         mock_pool.storageVolLookupByName.side_effect = [
             libvirt.libvirtError("Not found"),
             mock_vol,

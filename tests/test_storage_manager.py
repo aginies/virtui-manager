@@ -87,7 +87,7 @@ class TestUploadCapacity(unittest.TestCase):
         self.assertIs(vol, created)
         pool.connect.return_value.storageVolDefineXML.assert_not_called()
 
-    def test_a_pool_that_cannot_redefine_keeps_the_uploaded_volume(self):
+    def test_a_pool_that_cannot_resize_keeps_the_uploaded_volume(self):
         """A backend that refuses the redefinition still has a usable volume."""
         path = self._local_file()
         pool, _created, refreshed = self._pool(probed_capacity=20 * 1024**3)
@@ -107,7 +107,7 @@ class TestUploadFailure(unittest.TestCase):
         created = MagicMock()
         created.name.return_value = "base"
         pool.createXML.return_value = created
-        pool.connect.return_value.newStream.return_value.sendAll.side_effect = Exception("broken")
+        pool.connect.return_value.newStream.return_value.send.side_effect = Exception("broken")
 
         handle = tempfile.NamedTemporaryFile("wb", suffix="-image.qcow2", delete=False)
         handle.write(b"x" * 1024)

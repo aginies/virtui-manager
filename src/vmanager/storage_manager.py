@@ -498,6 +498,77 @@ def create_volume(
         raise Exception(msg) from e
 
 
+def stream_file_into_volume(
+    conn: libvirt.virConnect,
+    vol: libvirt.virStorageVol,
+    local_path: str,
+    file_size: int,
+    progress_callback=None,
+) -> None:
+    """Streams a local file's bytes into an already-defined volume.
+
+    The one implementation of "put this file into that volume": the CLI's
+    upload_file_to_volume() and VMProvisioner.upload_file() both come here, so
+    the keepalive handling, the chunking and the cleanup after a failed stream
+    are written once.
+
+    The keepalive is raised for the duration of the upload and restored after:
+    a multi-GB image over a remote hypervisor otherwise outlives it, so the
+    connection is pinged every so many chunks as well. A stream that fails
+    removes the half-written volume, because leaving it behind would make the
+    next upload of the same name fail on a taken name.
+    """
+    old_interval, old_count = -1, 0
+    try:
+        old_interval, old_count = conn.getKeepAlive()
+    except (libvirt.libvirtError, AttributeError, TypeError, ValueError):
+        # A connection that cannot report its keepalive keeps the default one.
+        pass
+    try:
+        conn.setKeepAlive(10, 5)
+    except (libvirt.libvirtError, AttributeError):
+        logging.warning("Could not set libvirt keepalive for the upload.")
+
+    try:
+        stream = conn.newStream(0)
+        try:
+            vol.upload(stream, 0, file_size)
+            uploaded = 0
+            chunks = 0
+            with open(local_path, "rb") as source:
+                while True:
+                    data = source.read(1024 * 1024)
+                    if not data:
+                        break
+                    stream.send(data)
+                    uploaded += len(data)
+                    chunks += 1
+                    if chunks % 10 == 0:
+                        try:
+                            conn.getLibVersion()
+                        except libvirt.libvirtError:
+                            pass
+                    if progress_callback and file_size > 0:
+                        progress_callback(int(uploaded * 100 / file_size))
+            stream.finish()
+        except Exception:
+            try:
+                stream.abort()
+            except libvirt.libvirtError:
+                logging.warning("Could not abort the failed upload stream.")
+            try:
+                vol.delete(0)
+            except libvirt.libvirtError:
+                logging.warning("Could not remove the partially uploaded volume '%s'", vol.name())
+            raise
+    finally:
+        if old_interval != -1:
+            try:
+                conn.setKeepAlive(old_interval, old_count)
+            except libvirt.libvirtError:
+                logging.warning("Could not restore the original libvirt keepalive settings.")
+
+
 def upload_file_to_volume(
     pool: libvirt.virStoragePool,
     name: str,
@@ -539,30 +610,9 @@ def upload_file_to_volume(
         logging.error(msg)
         raise Exception(msg) from e
 
-    stream = pool.connect().newStream(0)
-    uploaded = 0
-
-    def read_from_file(_stream, nbytes, fileobj):
-        nonlocal uploaded
-        chunk = fileobj.read(nbytes)
-        uploaded += len(chunk)
-        if progress_callback and size > 0:
-            progress_callback(int(uploaded * 100 / size))
-        return chunk
-
     try:
-        vol.upload(stream, 0, size)
-        with open(path, "rb") as source:
-            stream.sendAll(read_from_file, source)
-        stream.finish()
+        stream_file_into_volume(pool.connect(), vol, path, size, progress_callback)
     except Exception as e:
-        stream.abort()
-        # A half-filled volume is of no use to anyone, and leaving it behind
-        # would make the next upload of the same name fail on a taken name.
-        try:
-            vol.delete(0)
-        except libvirt.libvirtError:
-            logging.warning("Could not remove the partially uploaded volume '%s'", name)
         msg = f"Error uploading '{path}' into volume '{name}': {e}"
         logging.error(msg)
         raise Exception(msg) from e
