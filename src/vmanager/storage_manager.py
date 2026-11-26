@@ -356,14 +356,12 @@ def ensure_default_pool(conn: libvirt.virConnect) -> libvirt.virStoragePool | No
         """
         pool = conn.storagePoolDefineXML(xml, 0)
 
-        # Try to build it (creates the directory if missing)
+        # Try to build it (creates the directory if missing). The pool is a dir
+        # pool, which refuses the RESIZE flag: it is built plainly.
         try:
-            pool.build(libvirt.VIR_STORAGE_POOL_BUILD_RESIZE)
+            pool.build(0)
         except libvirt.libvirtError:
-            try:
-                pool.build(0)
-            except libvirt.libvirtError:
-                pass  # Already exists or cannot build
+            pass  # Already exists or cannot build
 
         pool.create(0)
         pool.setAutostart(1)
@@ -401,13 +399,17 @@ def create_storage_pool(
     xml += "</pool>"
     pool = conn.storagePoolDefineXML(xml, 0)
 
-    # Create the target directory (dir pools) or mount the share (netfs pools).
-    # This runs on the host that owns the pool (local or remote via libvirtd),
-    # so pool.create() does not fail when the target path does not exist yet.
-    try:
-        pool.build(libvirt.VIR_STORAGE_POOL_BUILD_RESIZE)
-    except libvirt.libvirtError:
+    # A dir pool has nothing to resize and refuses the RESIZE flag, so it is
+    # built plainly; a netfs pool's share is built with RESIZE so an existing
+    # directory is accepted instead of failing. Building is best effort here:
+    # the target may already exist on the host that owns the pool.
+    if pool_type == "dir":
         pool.build(0)
+    else:
+        try:
+            pool.build(libvirt.VIR_STORAGE_POOL_BUILD_RESIZE)
+        except libvirt.libvirtError:
+            pool.build(0)
 
     pool.create(0)
     pool.setAutostart(1)
@@ -509,64 +511,48 @@ def stream_file_into_volume(
 
     The one implementation of "put this file into that volume": the CLI's
     upload_file_to_volume() and VMProvisioner.upload_file() both come here, so
-    the keepalive handling, the chunking and the cleanup after a failed stream
-    are written once.
+    the chunking and the cleanup after a failed stream are written once.
 
-    The keepalive is raised for the duration of the upload and restored after:
-    a multi-GB image over a remote hypervisor otherwise outlives it, so the
-    connection is pinged every so many chunks as well. A stream that fails
-    removes the half-written volume, because leaving it behind would make the
-    next upload of the same name fail on a taken name.
+    The connection is pinged every so many chunks: that, and not a keepalive
+    setting, is what keeps a multi-GB upload over a remote hypervisor alive.
+    The keepalive is deliberately left as connection_manager set it -- the
+    Python binding has no getKeepAlive, so a value read back, assumed and
+    rewritten would be a guess, and the ping does the work anyway.
+
+    A stream that fails removes the half-written volume, because leaving it
+    behind would make the next upload of the same name fail on a taken name.
     """
-    old_interval, old_count = -1, 0
+    stream = conn.newStream(0)
     try:
-        old_interval, old_count = conn.getKeepAlive()
-    except (libvirt.libvirtError, AttributeError, TypeError, ValueError):
-        # A connection that cannot report its keepalive keeps the default one.
-        pass
-    try:
-        conn.setKeepAlive(10, 5)
-    except (libvirt.libvirtError, AttributeError):
-        logging.warning("Could not set libvirt keepalive for the upload.")
-
-    try:
-        stream = conn.newStream(0)
+        vol.upload(stream, 0, file_size)
+        uploaded = 0
+        chunks = 0
+        with open(local_path, "rb") as source:
+            while True:
+                data = source.read(1024 * 1024)
+                if not data:
+                    break
+                stream.send(data)
+                uploaded += len(data)
+                chunks += 1
+                if chunks % 10 == 0:
+                    try:
+                        conn.getLibVersion()
+                    except libvirt.libvirtError:
+                        pass
+                if progress_callback and file_size > 0:
+                    progress_callback(int(uploaded * 100 / file_size))
+        stream.finish()
+    except Exception:
         try:
-            vol.upload(stream, 0, file_size)
-            uploaded = 0
-            chunks = 0
-            with open(local_path, "rb") as source:
-                while True:
-                    data = source.read(1024 * 1024)
-                    if not data:
-                        break
-                    stream.send(data)
-                    uploaded += len(data)
-                    chunks += 1
-                    if chunks % 10 == 0:
-                        try:
-                            conn.getLibVersion()
-                        except libvirt.libvirtError:
-                            pass
-                    if progress_callback and file_size > 0:
-                        progress_callback(int(uploaded * 100 / file_size))
-            stream.finish()
-        except Exception:
-            try:
-                stream.abort()
-            except libvirt.libvirtError:
-                logging.warning("Could not abort the failed upload stream.")
-            try:
-                vol.delete(0)
-            except libvirt.libvirtError:
-                logging.warning("Could not remove the partially uploaded volume '%s'", vol.name())
-            raise
-    finally:
-        if old_interval != -1:
-            try:
-                conn.setKeepAlive(old_interval, old_count)
-            except libvirt.libvirtError:
-                logging.warning("Could not restore the original libvirt keepalive settings.")
+            stream.abort()
+        except libvirt.libvirtError:
+            logging.warning("Could not abort the failed upload stream.")
+        try:
+            vol.delete(0)
+        except libvirt.libvirtError:
+            logging.warning("Could not remove the partially uploaded volume '%s'", vol.name())
+        raise
 
 
 def upload_file_to_volume(
@@ -678,30 +664,36 @@ def create_overlay_volume(
     name: str,
     backing_vol_path: str,
     backing_vol_format: str = "qcow2",
+    backing_capacity: int | None = None,
 ) -> libvirt.virStorageVol:
     """
     Creates a qcow2 overlay volume backed by another volume (backing file).
     The new volume will record changes, while the backing file remains untouched.
+
+    An overlay's capacity is the backing volume's, and a caller that already has
+    that volume can pass its capacity: looking the path up again walks every
+    pool and logs a miss in each that does not hold it.
     """
     if not _ensure_pool_active(pool):
         msg = f"Pool '{pool.name()}' is not active and could not be activated."
         logging.error(msg)
         raise Exception(msg)
 
-    conn = pool.connect()
-    backing_vol, _ = _find_vol_by_path(conn, backing_vol_path)
+    if backing_capacity is None:
+        conn = pool.connect()
+        backing_vol, _ = _find_vol_by_path(conn, backing_vol_path)
 
-    if not backing_vol:
-        raise Exception(
-            f"Could not find backing volume for path '{backing_vol_path}' to determine capacity."
-        )
+        if not backing_vol:
+            raise Exception(
+                f"Could not find backing volume for path '{backing_vol_path}' to determine capacity."
+            )
 
-    _, capacity, _ = _safe_get_volume_info(backing_vol)
+        _, backing_capacity, _ = _safe_get_volume_info(backing_vol)
 
     vol_xml = f"""
     <volume>
         <name>{name}</name>
-        <capacity unit="bytes">{capacity}</capacity>
+        <capacity unit="bytes">{backing_capacity}</capacity>
         <target>
             <format type='qcow2'/>
         </target>

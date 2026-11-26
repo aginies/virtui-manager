@@ -11,11 +11,11 @@ download size gives every clone a disk of that size.
 import os
 import tempfile
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import libvirt
 
-from vmanager.storage_manager import upload_file_to_volume
+from vmanager.storage_manager import create_overlay_volume, upload_file_to_volume
 
 VOLUME_XML = (
     "<volume><name>base</name><capacity unit='bytes'>1024</capacity>"
@@ -122,3 +122,42 @@ class TestUploadFailure(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestOverlayCapacity(unittest.TestCase):
+    """create_overlay_volume takes the capacity its caller already has."""
+
+    def _pool(self):
+        pool = MagicMock()
+        pool.isActive.return_value = True
+        pool.name.return_value = "sidekick"
+        pool.createXML.return_value = MagicMock()
+        return pool
+
+    def test_a_given_capacity_skips_the_backing_volume_walk(self):
+        """No pool-by-pool lookup of the backing path, and so no logged misses."""
+        pool = self._pool()
+
+        with patch("vmanager.storage_manager._find_vol_by_path") as walk:
+            create_overlay_volume(
+                pool, "inst1", "/var/lib/sidekick/base", backing_capacity=10 * 1024**3
+            )
+
+        walk.assert_not_called()
+        xml = pool.createXML.call_args[0][0]
+        self.assertIn(f"<capacity unit=\"bytes\">{10 * 1024**3}</capacity>", xml)
+        self.assertIn("/var/lib/sidekick/base", xml)
+
+    def test_without_a_capacity_the_backing_volume_is_found_by_path(self):
+        """The TUI callers pass no capacity, so the walk still happens."""
+        pool = self._pool()
+        backing = MagicMock()
+        backing.info.return_value = (0, 5 * 1024**3, 0)
+
+        with patch(
+            "vmanager.storage_manager._find_vol_by_path", return_value=(backing, pool)
+        ) as walk:
+            create_overlay_volume(pool, "inst1", "/var/lib/sidekick/base")
+
+        walk.assert_called_once()
+        self.assertIn(f"{5 * 1024**3}", pool.createXML.call_args[0][0])
