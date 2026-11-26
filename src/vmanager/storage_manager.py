@@ -26,7 +26,7 @@ def _safe_is_pool_active(pool: libvirt.virStoragePool) -> bool:
     Returns False if the check fails or times out.
     """
     try:
-        return pool.isActive()
+        return bool(pool.isActive())
     except libvirt.libvirtError as e:
         logging.debug(f"Failed to check if pool '{pool.name()}' is active: {e}")
         return False
@@ -109,9 +109,10 @@ def _safe_get_volume_info(vol: libvirt.virStorageVol) -> tuple[int, int, int]:
     """
     try:
         # Use vol.info() to get the volume information.
-        # This returns a tuple: (type, capacity, allocation)
+        # libvirt.py annotates info() as returning a str; it returns the tuple
+        # (type, capacity, allocation), so the ints are taken from it here.
         vol_type, capacity, allocation = vol.info()
-        return vol_type, capacity, allocation
+        return int(vol_type), int(capacity), int(allocation)
     except libvirt.libvirtError as e:
         logging.debug(f"Failed to get info for volume '{vol.name()}': {e}")
         return 0, 0, 0
@@ -147,12 +148,15 @@ def list_storage_pools(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
     try:
         pools = conn.listAllStoragePools(0)
         for pool in pools:
+            # Set per pool: the entries of a previous pool must not name this one
+            # when reading its details fails below.
+            name = "Unknown Pool"
             try:
                 # Try to get basic info
                 try:
                     name = pool.name()
                 except libvirt.libvirtError:
-                    name = "Unknown Pool"
+                    pass
 
                 is_active = _safe_is_pool_active(pool)
                 capacity, allocation, _ = _safe_get_pool_info(pool)
@@ -170,12 +174,6 @@ def list_storage_pools(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
                 )
             except libvirt.libvirtError as e:
                 # If we fail to get details (e.g. NFS down), still list the pool but as unavailable
-                if "name" not in locals():
-                    try:
-                        name = pool.name()
-                    except Exception:
-                        name = "Unknown Pool"
-
                 logging.warning(f"Failed to get details for pool '{name}': {e}")
                 pools_info.append(
                     {
@@ -358,14 +356,12 @@ def ensure_default_pool(conn: libvirt.virConnect) -> libvirt.virStoragePool | No
         """
         pool = conn.storagePoolDefineXML(xml, 0)
 
-        # Try to build it (creates the directory if missing)
+        # Try to build it (creates the directory if missing). The pool is a dir
+        # pool, which refuses the RESIZE flag: it is built plainly.
         try:
-            pool.build(libvirt.VIR_STORAGE_POOL_BUILD_RESIZE)
+            pool.build(0)
         except libvirt.libvirtError:
-            try:
-                pool.build(0)
-            except libvirt.libvirtError:
-                pass  # Already exists or cannot build
+            pass  # Already exists or cannot build
 
         pool.create(0)
         pool.setAutostart(1)
@@ -403,13 +399,17 @@ def create_storage_pool(
     xml += "</pool>"
     pool = conn.storagePoolDefineXML(xml, 0)
 
-    # Create the target directory (dir pools) or mount the share (netfs pools).
-    # This runs on the host that owns the pool (local or remote via libvirtd),
-    # so pool.create() does not fail when the target path does not exist yet.
-    try:
-        pool.build(libvirt.VIR_STORAGE_POOL_BUILD_RESIZE)
-    except libvirt.libvirtError:
+    # A dir pool has nothing to resize and refuses the RESIZE flag, so it is
+    # built plainly; a netfs pool's share is built with RESIZE so an existing
+    # directory is accepted instead of failing. Building is best effort here:
+    # the target may already exist on the host that owns the pool.
+    if pool_type == "dir":
         pool.build(0)
+    else:
+        try:
+            pool.build(libvirt.VIR_STORAGE_POOL_BUILD_RESIZE)
+        except libvirt.libvirtError:
+            pool.build(0)
 
     pool.create(0)
     pool.setAutostart(1)
@@ -421,9 +421,9 @@ def create_volume(
     name: str,
     size_gb: int,
     vol_format: str,
-    preallocation: str = None,
+    preallocation: Optional[str] = None,
     lazy_refcounts: bool = False,
-    cluster_size: str = None,
+    cluster_size: Optional[str] = None,
 ):
     """
     Creates a new storage volume in a pool.
@@ -500,35 +500,200 @@ def create_volume(
         raise Exception(msg) from e
 
 
-def create_overlay_volume(
+def stream_file_into_volume(
+    conn: libvirt.virConnect,
+    vol: libvirt.virStorageVol,
+    local_path: str,
+    file_size: int,
+    progress_callback=None,
+) -> None:
+    """Streams a local file's bytes into an already-defined volume.
+
+    The one implementation of "put this file into that volume": the CLI's
+    upload_file_to_volume() and VMProvisioner.upload_file() both come here, so
+    the chunking and the cleanup after a failed stream are written once.
+
+    The connection is pinged every so many chunks: that, and not a keepalive
+    setting, is what keeps a multi-GB upload over a remote hypervisor alive.
+    The keepalive is deliberately left as connection_manager set it -- the
+    Python binding has no getKeepAlive, so a value read back, assumed and
+    rewritten would be a guess, and the ping does the work anyway.
+
+    A stream that fails removes the half-written volume, because leaving it
+    behind would make the next upload of the same name fail on a taken name.
+    """
+    stream = conn.newStream(0)
+    try:
+        vol.upload(stream, 0, file_size)
+        uploaded = 0
+        chunks = 0
+        with open(local_path, "rb") as source:
+            while True:
+                data = source.read(1024 * 1024)
+                if not data:
+                    break
+                stream.send(data)
+                uploaded += len(data)
+                chunks += 1
+                if chunks % 10 == 0:
+                    try:
+                        conn.getLibVersion()
+                    except libvirt.libvirtError:
+                        pass
+                if progress_callback and file_size > 0:
+                    progress_callback(int(uploaded * 100 / file_size))
+        stream.finish()
+    except Exception:
+        try:
+            stream.abort()
+        except libvirt.libvirtError:
+            logging.warning("Could not abort the failed upload stream.")
+        try:
+            vol.delete(0)
+        except libvirt.libvirtError:
+            logging.warning("Could not remove the partially uploaded volume '%s'", vol.name())
+        raise
+
+
+def upload_file_to_volume(
     pool: libvirt.virStoragePool,
     name: str,
-    backing_vol_path: str,
-    backing_vol_format: str = "qcow2",
+    path: str,
+    vol_format=None,
+    progress_callback=None,
 ) -> libvirt.virStorageVol:
     """
-    Creates a qcow2 overlay volume backed by another volume (backing file).
-    The new volume will record changes, while the backing file remains untouched.
+    Creates a volume the size of a file and fills it from that file.
+
+    The volume is defined with the file's size, and the bytes are streamed in,
+    so a multi-GB image never has to fit in memory. A raw image's size is its
+    capacity; a qcow2's is only the size it downloads as, so once the header is
+    written the volume takes the virtual size the image records (see
+    _adopt_uploaded_capacity).
     """
     if not _ensure_pool_active(pool):
         msg = f"Pool '{pool.name()}' is not active and could not be activated."
         logging.error(msg)
         raise Exception(msg)
 
-    conn = pool.connect()
-    backing_vol, _ = _find_vol_by_path(conn, backing_vol_path)
-
-    if not backing_vol:
-        raise Exception(
-            f"Could not find backing volume for path '{backing_vol_path}' to determine capacity."
-        )
-
-    _, capacity, _ = _safe_get_volume_info(backing_vol)
+    size = os.path.getsize(path)
+    if vol_format is None:
+        vol_format = "qcow2" if path.lower().endswith(".qcow2") else "raw"
 
     vol_xml = f"""
     <volume>
         <name>{name}</name>
-        <capacity unit="bytes">{capacity}</capacity>
+        <capacity unit="bytes">{size}</capacity>
+        <target>
+            <format type='{vol_format}'/>
+        </target>
+    </volume>
+    """
+    try:
+        vol = pool.createXML(vol_xml, 0)
+    except libvirt.libvirtError as e:
+        msg = f"Error creating volume '{name}' in pool '{pool.name()}': {e}"
+        logging.error(msg)
+        raise Exception(msg) from e
+
+    try:
+        stream_file_into_volume(pool.connect(), vol, path, size, progress_callback)
+    except Exception as e:
+        msg = f"Error uploading '{path}' into volume '{name}': {e}"
+        logging.error(msg)
+        raise Exception(msg) from e
+
+    return _adopt_uploaded_capacity(pool, vol, size)
+
+
+def _adopt_uploaded_capacity(
+    pool: libvirt.virStoragePool, vol: libvirt.virStorageVol, defined_capacity: int
+) -> libvirt.virStorageVol:
+    """Gives an uploaded volume the capacity the image it came from records.
+
+    The volume was defined with the local file's size, which is the capacity of
+    a raw image but only the compressed size of a qcow2 one: its header holds
+    the virtual size. A refresh makes libvirt probe the target and report that
+    virtual size, and the volume is raised to it with resize(), because
+    create_overlay_volume() takes an overlay's capacity from its backing volume
+    -- a 20 GB image left at its download size would give every clone of it a
+    disk of the download's size. resize() is what raises a volume's capacity:
+    the Python binding has no storageVolDefineXML.
+
+    The upload has succeeded by the time this runs, so a pool that cannot probe
+    or cannot resize keeps the volume it has and says so in the log.
+    """
+    try:
+        pool.refresh(0)
+        refreshed = pool.storageVolLookupByName(vol.name())
+        # info() returns (type, capacity, allocation); libvirt.py annotates it
+        # as a str, which is not the tuple it really returns.
+        probed = int(refreshed.info()[1])
+    except (libvirt.libvirtError, AttributeError, TypeError, ValueError) as e:
+        logging.warning(
+            "Could not re-read the capacity of volume '%s' after the upload: %s", vol.name(), e
+        )
+        return vol
+
+    if probed <= defined_capacity:
+        return refreshed
+
+    try:
+        refreshed.resize(probed, 0)
+    except libvirt.libvirtError as e:
+        logging.warning(
+            "Volume '%s' stays at the size of the file uploaded into it (%d bytes); "
+            "the image records %d: %s",
+            vol.name(),
+            defined_capacity,
+            probed,
+            e,
+        )
+        return refreshed
+
+    logging.info(
+        "Volume '%s' takes the capacity of the image uploaded into it: %d bytes",
+        vol.name(),
+        probed,
+    )
+    return refreshed
+
+
+def create_overlay_volume(
+    pool: libvirt.virStoragePool,
+    name: str,
+    backing_vol_path: str,
+    backing_vol_format: str = "qcow2",
+    backing_capacity: int | None = None,
+) -> libvirt.virStorageVol:
+    """
+    Creates a qcow2 overlay volume backed by another volume (backing file).
+    The new volume will record changes, while the backing file remains untouched.
+
+    An overlay's capacity is the backing volume's, and a caller that already has
+    that volume can pass its capacity: looking the path up again walks every
+    pool and logs a miss in each that does not hold it.
+    """
+    if not _ensure_pool_active(pool):
+        msg = f"Pool '{pool.name()}' is not active and could not be activated."
+        logging.error(msg)
+        raise Exception(msg)
+
+    if backing_capacity is None:
+        conn = pool.connect()
+        backing_vol, _ = _find_vol_by_path(conn, backing_vol_path)
+
+        if not backing_vol:
+            raise Exception(
+                f"Could not find backing volume for path '{backing_vol_path}' to determine capacity."
+            )
+
+        _, backing_capacity, _ = _safe_get_volume_info(backing_vol)
+
+    vol_xml = f"""
+    <volume>
+        <name>{name}</name>
+        <capacity unit="bytes">{backing_capacity}</capacity>
         <target>
             <format type='qcow2'/>
         </target>
@@ -664,7 +829,7 @@ def move_volume(
     source_pool_name: str,
     dest_pool_name: str,
     volume_name: str,
-    new_volume_name: str = None,
+    new_volume_name: Optional[str] = None,
     progress_callback=None,
     log_callback=None,
 ) -> List[str]:
@@ -960,7 +1125,7 @@ def get_all_storage_volumes(conn: libvirt.virConnect) -> List[libvirt.virStorage
 
 
 def list_unused_volumes(
-    conn: libvirt.virConnect, pool_name: str = None
+    conn: libvirt.virConnect, pool_name: Optional[str] = None
 ) -> List[libvirt.virStorageVol]:
     """
     Lists all storage volumes that are not attached to any VM.
@@ -1134,8 +1299,8 @@ def copy_volume_across_hosts(
     source_pool_name: str,
     dest_pool_name: str,
     volume_name: str,
-    new_volume_name: str = None,
-    new_backing_path: str = None,
+    new_volume_name: Optional[str] = None,
+    new_backing_path: Optional[str] = None,
     backing_format: str = "qcow2",
     progress_callback=None,
     log_callback=None,

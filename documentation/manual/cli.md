@@ -22,6 +22,16 @@ vmc -c "select_vm web-01 | start"
 
 `-c, --command <command>` — execute one command and exit. Prompts auto-select first option.
 
+`--yes` — answer the confirmations with yes. A command that cannot run without
+one — `delete` and `delete_volume` — cancels itself when the command comes from
+`-c` and `--yes` is not given, so a scripted deletion is never a surprise:
+`vmc -c "delete old-vm" --yes` means it. `delete` still keeps the disks unless
+`--force-storage-delete` asks for them, because removing the disks is a second,
+more destructive answer with a flag of its own.
+
+A command that creates something it cannot search for has no server to pick:
+with several connected, name the one to use with `-u`/`--uri`.
+
 `-u, --uri <uri>` — connect to this hypervisor and to nothing else, instead of the
 servers marked `autoconnect` in your configuration. Needs `-c` or `--json`.
 With `--json` it replaces the `server` field of the deployment file, which the file
@@ -89,7 +99,7 @@ All operations can take specific VM names or UUIDs as arguments. If omitted, the
 *   **`pause` / `resume`**: Freezes or unfreezes VM execution.
 *   **`hibernate`**: Saves the VM state to disk and stops it.
 *   **`view`**: Launches the graphical viewer (Spice or VNC) for the target VMs.
-*   **`delete [--force-storage-delete]`**: Permanently deletes the VM. Optional flag removes associated disk images. Deleted VMs are automatically removed from the selection.
+*   **`delete [--force-storage-delete]`**: Permanently deletes the VM. Optional flag removes associated disk images. Deleted VMs are automatically removed from the selection. A `-c` run cancels itself unless `--yes` is given, and the disks are kept unless `--force-storage-delete` is given.
 *   **`clone_vm <source>`**: Launches an interactive wizard to create one or more clones, allowing you to specify naming postfixes and whether to clone the storage.
 *   **`rename_vm <vm_name> <new_name>`**: Renames a stopped VM (snapshots and NVRAM are preserved).
 *   **`change_video <vm_name> <model> [--3d]`**: Changes the video model of a stopped VM. `<model>` is one of the host-supported models (see `host_capabilities`), or `none` to disable video (no default video device is added). 3D acceleration (virtio and qxl only) is off unless `--3d` is given.
@@ -301,7 +311,10 @@ backup_test_sle16_PRUSA_ryzen7      sle16_PRUSA     ryzen7          snapshot   S
 
 *   **`list_vms`**: Lists all VMs on all connected servers with their current status.
 *   **`list_pool`**: Displays all storage pools, their capacity, and usage.
+*   **`create_pool <pool_name> [target_path]`**: Creates and starts a `dir` storage pool. The directory is created on the host that owns the pool; without a path it is `/var/lib/libvirt/images/<pool_name>`.
 *   **`list_volumes [pool_name]`**: Lists all storage volumes in a pool (name, type, capacity, allocation).
+*   **`volume_upload <pool_name> <volume_name> <file> [--format raw|qcow2]`** (or `volume_upload --pool <pool_name> --name <volume_name> --file <file>`): Creates a volume and streams the file into it, which is how a disk image or a cloud-init seed ISO reaches a pool. Without `--format`, a `.qcow2` file is uploaded as qcow2 and anything else as raw. A taken name is refused rather than overwritten. The volume is defined at the size of the file, and a qcow2 keeps the larger virtual size its own header records once the upload has written it, so an overlay of the volume is as large as the image was built rather than as large as it downloaded.
+*   **`volume_create_overlay <pool_name> <volume_name> <backing_volume_name>`**: Creates a qcow2 volume backed by an existing volume, so it records changes and leaves the backing volume untouched. The overlay takes its capacity from the backing volume, and a taken name is refused rather than overwritten — `pool.createXML` on an existing name writes over the file, which on an instance disk would truncate the disk of a running guest.
 *   **`list_unused_volumes [pool_name]`**: Finds orphaned disk images that are not attached to any VM.
 *   **`delete_volume <pool_name> <volume_name>`**: Deletes a storage volume from a pool.
 *   **`volume_usage <pool_name> <volume_name>`**: Lists the VMs that use a storage volume.
@@ -639,7 +652,7 @@ guess at.
 | Snapshots | `snapshot_list`, `snapshot_create`, `snapshot_delete`, `snapshot_revert` |
 | Backups | `backup_create`, `backup_list`, `backup_status`, `backup_restore`, `backup_cleanup` |
 | Networking | `list_networks`, `net_start`, `net_stop`, `net_delete`, `net_info`, `network_usage`, `net_autostart` |
-| Storage | `list_pool`, `list_volumes`, `list_unused_volumes`, `delete_volume`, `volume_usage` |
+| Storage | `list_pool`, `create_pool`, `list_volumes`, `list_unused_volumes`, `delete_volume`, `volume_usage`, `volume_upload`, `volume_create_overlay` |
 | Installation | `prepare_json`, `deploy_vm`, `list_json`, `show_json`, `list_isos`, `list_cached_isos` |
 | Pipelines | `pipeline` (with `|` chaining) |
 | Shell/Utils | `bash`, `history`, `!<number>`, `version`, `about`, `quit`, `help` |

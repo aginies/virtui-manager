@@ -1644,5 +1644,391 @@ class TestUriOption(unittest.TestCase):
         self.assertEqual(self.cmd.selected_vms, {})
 
 
+class TestUnattendedDelete(unittest.TestCase):
+    """Deletions as a single command drives them.
+
+    A caller that runs ``vmc -c "delete ..."`` has nobody to answer the
+    confirmation, and ``_get_input`` answers "" in that mode, which the
+    confirmation used to read as "no" and cancel the deletion.
+    """
+
+    @patch("vmanager.vmanager_cmd.load_config")
+    @patch("vmanager.vmanager_cmd.get_log_path")
+    @patch("vmanager.vmanager_cmd.CLILogger")
+    def setUp(self, mock_logger, mock_log_path, mock_load_config):
+        mock_load_config.return_value = {
+            "servers": [
+                {"name": "local", "uri": "qemu:///system", "autoconnect": False},
+            ]
+        }
+        mock_log_path.return_value = "/tmp/vmanager_test.log"
+        self.mock_vm_service = MagicMock()
+        with patch("sys.stdout", MagicMock()):
+            self.cmd = VManagerCMD(vm_service=self.mock_vm_service)
+
+    def _make_vm_conn(self, vm_name="vm1"):
+        """A connected server with one VM, and nothing else by that name."""
+        domain = MagicMock()
+        domain.name.return_value = vm_name
+        domain.UUIDString.return_value = "uuid-1"
+        domain.isActive.return_value = False
+        conn = MagicMock()
+        conn.listAllDomains.return_value = [domain]
+
+        def lookup(name):
+            if name == vm_name:
+                return domain
+            raise self._no_domain_error()
+
+        conn.lookupByName.side_effect = lookup
+        self.cmd.active_connections["local"] = conn
+        return conn, domain
+
+    def _no_domain_error(self):
+        import libvirt
+
+        class NoDomainError(libvirt.libvirtError):
+            def get_error_code(self):
+                return libvirt.VIR_ERR_NO_DOMAIN
+
+        return NoDomainError("no such object")
+
+    def test_delete_without_a_terminal_does_not_ask(self):
+        """A named VM is deleted instead of the confirmation cancelling it."""
+        self.cmd.yes_mode = True
+        self.cmd.confirm_yes = True
+        self._make_vm_conn()
+
+        with patch("vmanager.vmanager_cmd.delete_vm") as mock_delete:
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_delete("vm1")
+
+        mock_delete.assert_called_once()
+        args, kwargs = mock_delete.call_args
+        self.assertEqual(kwargs.get("delete_nvram"), False)
+        self.assertFalse(args[1], "storage must be kept without --force-storage-delete")
+        self.assertIn("deleted successfully", buf.getvalue())
+
+    def test_delete_with_storage_flag_deletes_the_storage(self):
+        """--force-storage-delete still decides the storage question."""
+        self.cmd.yes_mode = True
+        self.cmd.confirm_yes = True
+        self._make_vm_conn()
+
+        with patch("vmanager.vmanager_cmd.delete_vm") as mock_delete:
+            with redirect_stdout(io.StringIO()):
+                self.cmd.do_delete("vm1 --force-storage-delete")
+
+        args, kwargs = mock_delete.call_args
+        self.assertTrue(args[1])
+        self.assertEqual(kwargs.get("delete_nvram"), True)
+
+    def test_delete_with_a_terminal_still_asks(self):
+        """An answer that is not yes keeps cancelling the interactive form."""
+        self._make_vm_conn()
+        self.cmd._get_input = MagicMock(return_value="no")
+
+        with patch("vmanager.vmanager_cmd.delete_vm") as mock_delete:
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_delete("vm1")
+
+        mock_delete.assert_not_called()
+        self.assertIn("VM deletion cancelled.", buf.getvalue())
+
+    def test_delete_without_yes_still_cancels(self):
+        """-c alone does not confirm a deletion: no --yes, no deletion."""
+        self.cmd.yes_mode = True
+        self._make_vm_conn()
+
+        with patch("vmanager.vmanager_cmd.delete_vm") as mock_delete:
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_delete("vm1")
+
+        mock_delete.assert_not_called()
+        self.assertIn("VM deletion cancelled.", buf.getvalue())
+
+    def test_delete_volume_without_a_terminal_deletes(self):
+        """A named volume is deleted instead of the confirmation cancelling it."""
+        self.cmd.yes_mode = True
+        self.cmd.confirm_yes = True
+        conn = MagicMock()
+        self.cmd.active_connections["local"] = conn
+        volume = MagicMock()
+
+        with patch("vmanager.vmanager_cmd.find_vms_using_volume", return_value=[]):
+            with patch("vmanager.vmanager_cmd.delete_volume") as mock_delete:
+                self.cmd._find_volume = MagicMock(return_value=("local", conn, volume))
+                with redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_delete_volume("sidekick base1")
+
+        mock_delete.assert_called_once_with(volume)
+        self.assertIn("deleted from pool", buf.getvalue())
+
+class TestCreatePool(unittest.TestCase):
+    """create_pool, the pool a base and its volumes live in."""
+
+    @patch("vmanager.vmanager_cmd.load_config")
+    @patch("vmanager.vmanager_cmd.get_log_path")
+    @patch("vmanager.vmanager_cmd.CLILogger")
+    def setUp(self, mock_logger, mock_log_path, mock_load_config):
+        mock_load_config.return_value = {
+            "servers": [
+                {"name": "local", "uri": "qemu:///system", "autoconnect": False},
+            ]
+        }
+        mock_log_path.return_value = "/tmp/vmanager_test.log"
+        self.mock_vm_service = MagicMock()
+        with patch("sys.stdout", MagicMock()):
+            self.cmd = VManagerCMD(vm_service=self.mock_vm_service)
+
+    def _no_domain_error(self):
+        import libvirt
+
+        class NoDomainError(libvirt.libvirtError):
+            def get_error_code(self):
+                return libvirt.VIR_ERR_NO_DOMAIN
+
+        return NoDomainError("no such object")
+
+    def test_create_pool_creates_a_directory_pool(self):
+        """The pool is created as a dir pool at the given path."""
+        conn = MagicMock()
+        self.cmd.active_connections["local"] = conn
+
+        with patch("vmanager.vmanager_cmd.list_storage_pools", return_value=[]):
+            with patch("vmanager.vmanager_cmd.create_storage_pool") as mock_create:
+                with redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_create_pool("sidekick /var/lib/sidekick")
+
+        mock_create.assert_called_once_with(conn, "sidekick", "dir", "/var/lib/sidekick")
+        self.assertIn("created on server 'local'", buf.getvalue())
+
+    def test_create_pool_reports_a_pool_that_exists(self):
+        """An existing name is reported, not created again.
+
+        The pool list answers the question: looking the name up raises for the
+        ordinary "does not exist yet" case, and the libvirt handler logs that
+        as an error before the answer is even used.
+        """
+        conn = MagicMock()
+        self.cmd.active_connections["local"] = conn
+
+        with patch(
+            "vmanager.vmanager_cmd.list_storage_pools",
+            return_value=[{"name": "sidekick", "pool": MagicMock()}],
+        ):
+            with patch("vmanager.vmanager_cmd.create_storage_pool") as mock_create:
+                with redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_create_pool("sidekick")
+
+        mock_create.assert_not_called()
+        self.assertIn("already exists", buf.getvalue())
+
+class TestVolumeUpload(unittest.TestCase):
+    """volume_upload, a file into a new volume."""
+
+    @patch("vmanager.vmanager_cmd.load_config")
+    @patch("vmanager.vmanager_cmd.get_log_path")
+    @patch("vmanager.vmanager_cmd.CLILogger")
+    def setUp(self, mock_logger, mock_log_path, mock_load_config):
+        mock_load_config.return_value = {
+            "servers": [
+                {"name": "local", "uri": "qemu:///system", "autoconnect": False},
+            ]
+        }
+        mock_log_path.return_value = "/tmp/vmanager_test.log"
+        self.mock_vm_service = MagicMock()
+        with patch("sys.stdout", MagicMock()):
+            self.cmd = VManagerCMD(vm_service=self.mock_vm_service)
+
+    def _free_upload_file(self, name="image.qcow2", size=1024):
+        import tempfile
+
+        handle = tempfile.NamedTemporaryFile("wb", suffix="-" + name, delete=False)
+        handle.write(b"x" * size)
+        handle.close()
+        self.addCleanup(os.unlink, handle.name)
+        return handle.name
+
+    def test_volume_upload_streams_the_file(self):
+        """The file goes into a new volume, with no format given."""
+        path = self._free_upload_file()
+        conn = MagicMock()
+        pool = MagicMock()
+        conn.storagePoolLookupByName.return_value = pool
+        self.cmd.active_connections["local"] = conn
+
+        with patch("vmanager.vmanager_cmd.list_storage_volumes", return_value=[]):
+            with patch("vmanager.vmanager_cmd.upload_file_to_volume") as mock_upload:
+                with redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_volume_upload(f"sidekick sidekick-image {path}")
+
+        mock_upload.assert_called_once_with(pool, "sidekick-image", path, None)
+        self.assertIn("created in pool 'sidekick'", buf.getvalue())
+
+    def test_volume_upload_takes_the_format(self):
+        """--format is passed through to the helper."""
+        path = self._free_upload_file(name="seed.iso")
+        conn = MagicMock()
+        pool = MagicMock()
+        conn.storagePoolLookupByName.return_value = pool
+        self.cmd.active_connections["local"] = conn
+
+        with patch("vmanager.vmanager_cmd.list_storage_volumes", return_value=[]):
+            with patch("vmanager.vmanager_cmd.upload_file_to_volume") as mock_upload:
+                with redirect_stdout(io.StringIO()):
+                    self.cmd.do_volume_upload(f"sidekick seed {path} --format raw")
+
+        mock_upload.assert_called_once_with(pool, "seed", path, "raw")
+
+    def test_volume_upload_refuses_a_missing_file(self):
+        """A file that is not there is named, not streamed."""
+        self.cmd.active_connections["local"] = MagicMock()
+
+        with patch("vmanager.vmanager_cmd.upload_file_to_volume") as mock_upload:
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_volume_upload("sidekick seed /nowhere/seed.iso")
+
+        mock_upload.assert_not_called()
+        self.assertIn("not found", buf.getvalue())
+
+    def test_volume_upload_reports_a_taken_name(self):
+        """A volume that exists is not overwritten by an upload."""
+        path = self._free_upload_file()
+        conn = MagicMock()
+        conn.storagePoolLookupByName.return_value = MagicMock()
+        self.cmd.active_connections["local"] = conn
+        # list_storage_volumes answers with dicts, not with volume objects.
+        existing = [{"name": "sidekick-image", "type": "file", "capacity": 0}]
+
+        with patch("vmanager.vmanager_cmd.list_storage_volumes", return_value=existing):
+            with patch("vmanager.vmanager_cmd.upload_file_to_volume") as mock_upload:
+                with redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_volume_upload(f"sidekick sidekick-image {path}")
+
+        mock_upload.assert_not_called()
+        self.assertIn("already exists", buf.getvalue())
+
+    def test_volume_upload_takes_the_named_options(self):
+        """--pool/--name/--file is the spelling the machine surface asked for."""
+        path = self._free_upload_file(name="seed.iso")
+        conn = MagicMock()
+        pool = MagicMock()
+        conn.storagePoolLookupByName.return_value = pool
+        self.cmd.active_connections["local"] = conn
+
+        with patch("vmanager.vmanager_cmd.list_storage_volumes", return_value=[]):
+            with patch("vmanager.vmanager_cmd.upload_file_to_volume") as mock_upload:
+                with redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_volume_upload(
+                        f"--pool sidekick --name seed --file {path} --format raw"
+                    )
+
+        mock_upload.assert_called_once_with(pool, "seed", path, "raw")
+        self.assertIn("created in pool 'sidekick'", buf.getvalue())
+
+    def test_volume_upload_refuses_a_half_named_line(self):
+        """A line that mixes the two spellings, or half of one, is a usage error."""
+        path = self._free_upload_file()
+        conn = MagicMock()
+        conn.storagePoolLookupByName.return_value = MagicMock()
+        self.cmd.active_connections["local"] = conn
+
+        lines = [
+            f"sidekick --name seed --file {path}",
+            f"--pool sidekick seed {path}",
+            "--pool sidekick --name seed",
+            "sidekick seed",
+        ]
+        with patch("vmanager.vmanager_cmd.list_storage_volumes", return_value=[]):
+            with patch("vmanager.vmanager_cmd.upload_file_to_volume") as mock_upload:
+                for line in lines:
+                    with redirect_stdout(io.StringIO()) as buf:
+                        self.cmd.do_volume_upload(line)
+                    self.assertIn("Usage: volume_upload", buf.getvalue())
+
+        mock_upload.assert_not_called()
+class TestVolumeCreateOverlay(unittest.TestCase):
+    """volume_create_overlay, a volume backed by another one."""
+
+    @patch("vmanager.vmanager_cmd.load_config")
+    @patch("vmanager.vmanager_cmd.get_log_path")
+    @patch("vmanager.vmanager_cmd.CLILogger")
+    def setUp(self, mock_logger, mock_log_path, mock_load_config):
+        mock_load_config.return_value = {
+            "servers": [
+                {"name": "local", "uri": "qemu:///system", "autoconnect": False},
+            ]
+        }
+        mock_log_path.return_value = "/tmp/vmanager_test.log"
+        self.mock_vm_service = MagicMock()
+        with patch("sys.stdout", MagicMock()):
+            self.cmd = VManagerCMD(vm_service=self.mock_vm_service)
+
+    def _no_domain_error(self):
+        import libvirt
+
+        class NoDomainError(libvirt.libvirtError):
+            def get_error_code(self):
+                return libvirt.VIR_ERR_NO_DOMAIN
+
+        return NoDomainError("no such object")
+
+    def test_volume_create_overlay_uses_the_backing_path(self):
+        """The overlay is created on the backing path, with the capacity in hand."""
+        conn = MagicMock()
+        pool = MagicMock()
+        backing = MagicMock()
+        backing.path.return_value = "/var/lib/sidekick/base1.qcow2"
+        backing.info.return_value = (0, 10 * 1024**3, 0)
+        pool.storageVolLookupByName.return_value = backing
+        conn.storagePoolLookupByName.return_value = pool
+        self.cmd.active_connections["local"] = conn
+
+        with patch("vmanager.vmanager_cmd.list_storage_volumes", return_value=[]):
+            with patch("vmanager.vmanager_cmd.create_overlay_volume") as mock_overlay:
+                with redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_volume_create_overlay("sidekick inst1 base1")
+
+        mock_overlay.assert_called_once_with(
+            pool,
+            "inst1",
+            "/var/lib/sidekick/base1.qcow2",
+            backing_capacity=10 * 1024**3,
+        )
+        self.assertIn("backed by 'base1'", buf.getvalue())
+
+    def test_volume_create_overlay_refuses_a_taken_name(self):
+        """A name that exists is refused rather than written over."""
+        conn = MagicMock()
+        pool = MagicMock()
+        conn.storagePoolLookupByName.return_value = pool
+        self.cmd.active_connections["local"] = conn
+        # list_storage_volumes answers with dicts, not with volume objects.
+        existing = [{"name": "inst1", "type": "file", "capacity": 0}]
+
+        with patch("vmanager.vmanager_cmd.list_storage_volumes", return_value=existing):
+            with patch("vmanager.vmanager_cmd.create_overlay_volume") as mock_overlay:
+                with redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_volume_create_overlay("sidekick inst1 base1")
+
+        mock_overlay.assert_not_called()
+        self.assertIn("already exists", buf.getvalue())
+
+    def test_volume_create_overlay_reports_a_missing_backing(self):
+        """A backing volume that is not there is named."""
+        conn = MagicMock()
+        pool = MagicMock()
+        pool.storageVolLookupByName.side_effect = self._no_domain_error()
+        conn.storagePoolLookupByName.return_value = pool
+        self.cmd.active_connections["local"] = conn
+
+        with patch("vmanager.vmanager_cmd.create_overlay_volume") as mock_overlay:
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_volume_create_overlay("sidekick inst1 base1")
+
+        mock_overlay.assert_not_called()
+        self.assertIn("not found in pool", buf.getvalue())
+
 if __name__ == "__main__":
     unittest.main()

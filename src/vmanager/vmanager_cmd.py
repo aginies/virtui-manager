@@ -69,6 +69,8 @@ from .provisioning.automation_engine import template_supports_serial_console
 from .provisioning.os_provider import OSType
 from .provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 from .storage_manager import (
+    create_overlay_volume,
+    create_storage_pool,
     delete_volume,
     ensure_default_pool,
     find_volume,
@@ -76,6 +78,7 @@ from .storage_manager import (
     list_storage_pools,
     list_storage_volumes,
     list_unused_volumes,
+    upload_file_to_volume,
 )
 from .utils import (
     extract_server_name_from_uri,
@@ -171,6 +174,10 @@ class VManagerCMD(cmd.Cmd):
     def __init__(self, vm_service=None):
         super().__init__()
         self.yes_mode = False
+        # Answer the confirmations with yes instead of asking, for --yes. Kept
+        # apart from yes_mode, which is what makes a prompt take its first
+        # option in a -c run: choosing an option is not agreeing to a deletion.
+        self.confirm_yes = False
         # The uri a scripted caller named with -u/--uri, None when it did not.
         # Set before preloop, so it replaces the configured autoconnect.
         self.default_uri = None
@@ -276,9 +283,12 @@ class VManagerCMD(cmd.Cmd):
             ],
             "Storage": [
                 "list_pool",
+                "create_pool",
                 "list_volumes",
                 "list_unused_volumes",
                 "volume_usage",
+                "volume_upload",
+                "volume_create_overlay",
                 "delete_volume",
             ],
             "Installation": ["prepare_json", "list_json", "show_json", "list_isos", "list_cached_isos"],
@@ -700,6 +710,38 @@ class VManagerCMD(cmd.Cmd):
         if choices_used is not None:
             choices_used.append(shlex.quote(val) if val else '""')
         return val
+
+    def _confirmed(self, prompt):
+        """Ask a yes/no question, or answer it when the caller said --yes.
+
+        A command that cannot run without a confirmation cancels itself when
+        nobody says yes, which is what a scripted caller wants by default: it
+        gets no destructive surprise, and says --yes when it means it.
+        """
+        if self.confirm_yes:
+            return "yes"
+        return self._get_input(prompt).lower()
+
+    def _one_connection(self, verb):
+        """The connected server a command that creates something should use.
+
+        A pool or a volume that does not exist yet cannot be searched for, so
+        there is no object to pick the server from the way delete_volume picks
+        it. One server connected is the answer; with several, the caller says
+        which one with -u/--uri.
+        """
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return None, None
+        if len(self.active_connections) == 1:
+            server_name = next(iter(self.active_connections))
+            return server_name, self.active_connections[server_name]
+        names = ", ".join(sorted(self.active_connections))
+        print(
+            f"Several servers are connected ({names}). "
+            f"Use -u/--uri to say which one to {verb} on."
+        )
+        return None, None
 
     def do_virsh(self, args):
         """Start a virsh shell connected to a server.
@@ -2217,18 +2259,22 @@ class VManagerCMD(cmd.Cmd):
 
         vm_list_str = ", ".join(all_vm_names)
         try:
-            confirm_vm_delete = self._get_input(
+            # A command given with -c has nobody to ask: the caller named the VMs
+            # to delete, so that much is confirmed, and the storage is kept unless
+            # --force-storage-delete asks for it, as the interactive default does.
+            confirm_vm_delete = self._confirmed(
                 f"Are you sure you want to delete the following VMs: {vm_list_str}? (yes/no): "
-            ).lower()
+            )
 
             if confirm_vm_delete != "yes":
                 print("VM deletion cancelled.")
                 return
 
-            delete_storage_confirmed = False
-            if force_storage_delete:
-                delete_storage_confirmed = True
-            else:
+            # Deleting the disks is a separate, more destructive answer with a
+            # flag of its own, so --yes does not give it: without
+            # --force-storage-delete the storage stays, as it does interactively.
+            delete_storage_confirmed = force_storage_delete
+            if not force_storage_delete and not self.yes_mode:
                 confirm_storage = self._get_input(
                     "Do you want to delete associated storage for all selected VMs? (yes/no): "
                 ).lower()
@@ -2988,14 +3034,14 @@ class VManagerCMD(cmd.Cmd):
             if vms_using:
                 names = ", ".join(d.name() for d in vms_using)
                 print(f"Volume '{volume_name}' is in use by VM(s): {names}")
-                confirm = self._get_input(
+                confirm = self._confirmed(
                     "Delete this volume anyway? This cannot be undone. (yes/no): "
-                ).lower()
+                )
             else:
-                confirm = self._get_input(
+                confirm = self._confirmed(
                     f"Delete volume '{volume_name}' from pool '{pool_name}' on server "
                     f"'{server_name}'? This cannot be undone. (yes/no): "
-                ).lower()
+                )
         except InterruptionRequested:
             print("\nOperation cancelled.")
             return
@@ -3018,6 +3064,194 @@ class VManagerCMD(cmd.Cmd):
             return self._complete_pools(text)
         # Completing the volume name (pool is the first argument)
         return self._complete_volumes(text, args[1])
+
+    def do_create_pool(self, args):
+        """Creates and starts a directory storage pool.
+        Usage: create_pool <pool_name> [target_path]
+
+        The directory is created on the hypervisor that owns the pool. Without a
+        path, the pool is created under /var/lib/libvirt/images/<pool_name>."""
+        arg_list = shlex.split(args)
+        if not 1 <= len(arg_list) <= 2:
+            print("Usage: create_pool <pool_name> [target_path]")
+            return
+
+        pool_name = arg_list[0]
+        target = arg_list[1] if len(arg_list) == 2 else f"/var/lib/libvirt/images/{pool_name}"
+
+        server_name, conn = self._one_connection("create a pool")
+        if not conn:
+            return
+
+        # Asked of the pool list, not by looking the name up: a lookup that
+        # raises for the ordinary "does not exist yet" case is logged as an
+        # error by the libvirt handler before the answer is used.
+        if pool_name in [pool["name"] for pool in list_storage_pools(conn)]:
+            print(f"Pool '{pool_name}' already exists on server '{server_name}'.")
+            return
+
+        try:
+            create_storage_pool(conn, pool_name, "dir", target)
+            list_storage_pools.cache_clear()
+            print(f"Pool '{pool_name}' created on server '{server_name}' at '{target}'.")
+        except Exception as e:
+            self._safe_print(f"Error creating pool '{pool_name}': {e}")
+
+    def _upload_arguments(self, arg_list):
+        """The pool, volume, file and format a volume_upload line names.
+
+        Two spellings are accepted: the three positionals, or --pool/--name/
+        --file, which is how the machine surface asks for it. They are not
+        mixed, so a half-written line is a usage error rather than a
+        half-understood one. Returns None when the line does not name a whole
+        upload.
+        """
+        named = {}
+        vol_format = None
+        positional = []
+        index = 0
+        while index < len(arg_list):
+            word = arg_list[index]
+            if word in ("--pool", "--name", "--file", "--format"):
+                if index + 1 >= len(arg_list):
+                    return None
+                if word == "--format":
+                    vol_format = arg_list[index + 1]
+                else:
+                    named[word] = arg_list[index + 1]
+                index += 2
+                continue
+            positional.append(word)
+            index += 1
+
+        pool_name = named.get("--pool")
+        volume_name = named.get("--name")
+        path = named.get("--file")
+        if positional:
+            if len(positional) != 3 or named:
+                return None
+            pool_name, volume_name, path = positional
+        if pool_name is None or volume_name is None or path is None:
+            return None
+        return pool_name, volume_name, path, vol_format
+
+    def do_volume_upload(self, args):
+        """Uploads a local file into a new storage volume.
+        Usage: volume_upload <pool_name> <volume_name> <file> [--format raw|qcow2]
+               volume_upload --pool <pool_name> --name <volume_name> --file <file>
+
+        The volume is created with the file's exact size and filled from it,
+        which is how an image or a cloud-init seed ISO reaches a pool. Without
+        --format, a '.qcow2' file is uploaded as qcow2 and anything else as raw.
+        A qcow2 image's virtual size becomes the volume's capacity once its header
+        is written, so an overlay of the volume is as large as the image was built,
+        not as large as it downloaded."""
+        arg_list = shlex.split(args)
+        usage = (
+            "Usage: volume_upload <pool_name> <volume_name> <file> "
+            "or volume_upload --pool <pool_name> --name <volume_name> --file <file> "
+            "[--format raw|qcow2]"
+        )
+
+        told = self._upload_arguments(arg_list)
+        if told is None:
+            print(usage)
+            return
+        pool_name, volume_name, path, vol_format = told
+
+        if not os.path.isfile(path):
+            print(f"File '{path}' not found.")
+            return
+
+        server_name, conn = self._one_connection("upload a volume")
+        if not conn:
+            return
+
+        try:
+            pool = conn.storagePoolLookupByName(pool_name)
+        except libvirt.libvirtError:
+            print(f"Pool '{pool_name}' not found on server '{server_name}'.")
+            return
+
+        if volume_name in [volume["name"] for volume in list_storage_volumes(pool)]:
+            print(f"Volume '{volume_name}' already exists in pool '{pool_name}'.")
+            return
+
+        try:
+            upload_file_to_volume(pool, volume_name, path, vol_format)
+            print(f"Volume '{volume_name}' created in pool '{pool_name}' from '{path}'.")
+        except Exception as e:
+            self._safe_print(f"Error uploading '{path}': {e}")
+
+    def complete_volume_upload(self, text, line, begidx, endidx):
+        """Auto-completion for volume_upload: the pool name first."""
+        args = line.split()
+        if len(args) <= 1 or (len(args) == 2 and not line.endswith(" ")):
+            return self._complete_pools(text)
+        return []
+
+    def do_volume_create_overlay(self, args):
+        """Creates a qcow2 volume backed by an existing volume.
+        Usage: volume_create_overlay <pool_name> <volume_name> <backing_volume_name>
+
+        The new volume records the changes and leaves the backing volume
+        untouched, which is what makes an instance on a base cheap."""
+        arg_list = shlex.split(args)
+        usage = "Usage: volume_create_overlay <pool_name> <volume_name> <backing_volume_name>"
+        if len(arg_list) != 3:
+            print(usage)
+            return
+
+        pool_name, volume_name, backing_name = arg_list
+
+        server_name, conn = self._one_connection("create an overlay")
+        if not conn:
+            return
+
+        try:
+            pool = conn.storagePoolLookupByName(pool_name)
+        except libvirt.libvirtError:
+            print(f"Pool '{pool_name}' not found on server '{server_name}'.")
+            return
+
+        # A taken name is refused rather than written over: createXML on an
+        # existing name reuses the file, which on an instance disk means
+        # truncating the disk of a running guest.
+        if volume_name in [volume["name"] for volume in list_storage_volumes(pool)]:
+            print(f"Volume '{volume_name}' already exists in pool '{pool_name}'.")
+            return
+
+        try:
+            backing = pool.storageVolLookupByName(backing_name)
+        except libvirt.libvirtError:
+            print(f"Volume '{backing_name}' not found in pool '{pool_name}'.")
+            return
+
+        try:
+            # The backing volume is in hand, so its capacity is read here rather
+            # than left to create_overlay_volume(), which would look the path up
+            # again and log a miss in every pool that does not hold it. libvirt.py
+            # annotates info() as returning a str; it returns the tuple
+            # (type, capacity, allocation).
+            backing_capacity = int(backing.info()[1])
+            create_overlay_volume(
+                pool, volume_name, backing.path(), backing_capacity=backing_capacity
+            )
+            print(
+                f"Volume '{volume_name}' created in pool '{pool_name}', "
+                f"backed by '{backing_name}'."
+            )
+        except Exception as e:
+            self._safe_print(f"Error creating overlay '{volume_name}': {e}")
+
+    def complete_volume_create_overlay(self, text, line, begidx, endidx):
+        """Auto-completion for volume_create_overlay: pool, then backing volume."""
+        args = line.split()
+        if len(args) <= 1 or (len(args) == 2 and not line.endswith(" ")):
+            return self._complete_pools(text)
+        if len(args) == 3 and line.endswith(" "):
+            return self._complete_volumes(text, args[1])
+        return []
 
     def do_help(self, arg):
         """List available commands with "help" or detailed help with "help cmd"."""
@@ -6053,6 +6287,14 @@ def main():
             "happened"
         ),
     )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help=(
+            "With -c: answer the confirmations with yes instead of cancelling "
+            "(delete, delete_volume)"
+        ),
+    )
     args = parser.parse_args()
 
     # Show help if -c/--command passed with no value
@@ -6062,6 +6304,10 @@ def main():
 
     if args.machine and not args.command:
         print("Error: --machine needs -c/--command.", file=sys.stderr)
+        return EXIT_USAGE
+
+    if args.yes and not args.command:
+        print("Error: --yes needs -c/--command.", file=sys.stderr)
         return EXIT_USAGE
 
     if args.uri and not (args.command or args.json):
@@ -6076,6 +6322,7 @@ def main():
 
     cmd_app = VManagerCMD()
     cmd_app.yes_mode = bool(args.command)
+    cmd_app.confirm_yes = bool(args.yes)
     cmd_app.default_uri = args.uri
 
     if args.machine:
