@@ -3083,15 +3083,16 @@ class VManagerCMD(cmd.Cmd):
         if not conn:
             return
 
-        try:
-            conn.storagePoolLookupByName(pool_name)
+        # Asked of the pool list, not by looking the name up: a lookup that
+        # raises for the ordinary "does not exist yet" case is logged as an
+        # error by the libvirt handler before the answer is used.
+        if pool_name in [pool["name"] for pool in list_storage_pools(conn)]:
             print(f"Pool '{pool_name}' already exists on server '{server_name}'.")
             return
-        except libvirt.libvirtError:
-            pass
 
         try:
             create_storage_pool(conn, pool_name, "dir", target)
+            list_storage_pools.cache_clear()
             print(f"Pool '{pool_name}' created on server '{server_name}' at '{target}'.")
         except Exception as e:
             self._safe_print(f"Error creating pool '{pool_name}': {e}")
@@ -3227,7 +3228,15 @@ class VManagerCMD(cmd.Cmd):
             return
 
         try:
-            create_overlay_volume(pool, volume_name, backing.path())
+            # The backing volume is in hand, so its capacity is read here rather
+            # than left to create_overlay_volume(), which would look the path up
+            # again and log a miss in every pool that does not hold it. libvirt.py
+            # annotates info() as returning a str; it returns the tuple
+            # (type, capacity, allocation).
+            backing_capacity = int(backing.info()[1])
+            create_overlay_volume(
+                pool, volume_name, backing.path(), backing_capacity=backing_capacity
+            )
             print(
                 f"Volume '{volume_name}' created in pool '{pool_name}', "
                 f"backed by '{backing_name}'."

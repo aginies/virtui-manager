@@ -1793,24 +1793,33 @@ class TestCreatePool(unittest.TestCase):
     def test_create_pool_creates_a_directory_pool(self):
         """The pool is created as a dir pool at the given path."""
         conn = MagicMock()
-        conn.storagePoolLookupByName.side_effect = self._no_domain_error()
         self.cmd.active_connections["local"] = conn
 
-        with patch("vmanager.vmanager_cmd.create_storage_pool") as mock_create:
-            with redirect_stdout(io.StringIO()) as buf:
-                self.cmd.do_create_pool("sidekick /var/lib/sidekick")
+        with patch("vmanager.vmanager_cmd.list_storage_pools", return_value=[]):
+            with patch("vmanager.vmanager_cmd.create_storage_pool") as mock_create:
+                with redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_create_pool("sidekick /var/lib/sidekick")
 
         mock_create.assert_called_once_with(conn, "sidekick", "dir", "/var/lib/sidekick")
         self.assertIn("created on server 'local'", buf.getvalue())
 
     def test_create_pool_reports_a_pool_that_exists(self):
-        """An existing name is reported, not created again."""
+        """An existing name is reported, not created again.
+
+        The pool list answers the question: looking the name up raises for the
+        ordinary "does not exist yet" case, and the libvirt handler logs that
+        as an error before the answer is even used.
+        """
         conn = MagicMock()
         self.cmd.active_connections["local"] = conn
 
-        with patch("vmanager.vmanager_cmd.create_storage_pool") as mock_create:
-            with redirect_stdout(io.StringIO()) as buf:
-                self.cmd.do_create_pool("sidekick")
+        with patch(
+            "vmanager.vmanager_cmd.list_storage_pools",
+            return_value=[{"name": "sidekick", "pool": MagicMock()}],
+        ):
+            with patch("vmanager.vmanager_cmd.create_storage_pool") as mock_create:
+                with redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_create_pool("sidekick")
 
         mock_create.assert_not_called()
         self.assertIn("already exists", buf.getvalue())
@@ -1966,20 +1975,27 @@ class TestVolumeCreateOverlay(unittest.TestCase):
         return NoDomainError("no such object")
 
     def test_volume_create_overlay_uses_the_backing_path(self):
-        """The overlay is created on the backing volume's path."""
+        """The overlay is created on the backing path, with the capacity in hand."""
         conn = MagicMock()
         pool = MagicMock()
         backing = MagicMock()
         backing.path.return_value = "/var/lib/sidekick/base1.qcow2"
+        backing.info.return_value = (0, 10 * 1024**3, 0)
         pool.storageVolLookupByName.return_value = backing
         conn.storagePoolLookupByName.return_value = pool
         self.cmd.active_connections["local"] = conn
 
-        with patch("vmanager.vmanager_cmd.create_overlay_volume") as mock_overlay:
-            with redirect_stdout(io.StringIO()) as buf:
-                self.cmd.do_volume_create_overlay("sidekick inst1 base1")
+        with patch("vmanager.vmanager_cmd.list_storage_volumes", return_value=[]):
+            with patch("vmanager.vmanager_cmd.create_overlay_volume") as mock_overlay:
+                with redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_volume_create_overlay("sidekick inst1 base1")
 
-        mock_overlay.assert_called_once_with(pool, "inst1", "/var/lib/sidekick/base1.qcow2")
+        mock_overlay.assert_called_once_with(
+            pool,
+            "inst1",
+            "/var/lib/sidekick/base1.qcow2",
+            backing_capacity=10 * 1024**3,
+        )
         self.assertIn("backed by 'base1'", buf.getvalue())
 
     def test_volume_create_overlay_refuses_a_taken_name(self):
